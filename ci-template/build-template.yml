@@ -1,0 +1,31 @@
+.build_template: &build
+  image: docker:dind
+  stage: build
+  allow_failure: false
+  services:
+    - docker:20.10.8-dind
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - export APP_VERSION=$ENV_NAME-$(date +'%Y-%m-%d_%H-%M-%S')-`[ -n "$CI_COMMIT_TAG" ] && echo $CI_COMMIT_TAG || echo $CI_COMMIT_SHORT_SHA`
+    - docker build -t $CI_REGISTRY_IMAGE:$APP_VERSION  . -f Dockerfile
+    - docker push $CI_REGISTRY_IMAGE:$APP_VERSION
+  tags: [build]
+
+build_dev:
+  variables:
+    DOCKER_FILE: "Dockerfile"
+    ENV_NAME: dev
+  <<: *build
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+build_prod:
+  variables:
+    DOCKER_FILE: "Dockerfile"
+    ENV_NAME: prod
+  <<: *build
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual

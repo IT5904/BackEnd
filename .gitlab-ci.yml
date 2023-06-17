@@ -1,0 +1,75 @@
+variables:
+  PROJECT: "api-vocalnix"
+  CI_REGISTRY: "registry.ftech.ai"
+  CI_REGISTRY_IMAGE: "registry.ftech.ai/blockchain/aleo/volcanix-server"
+  RESULT : ./result1.json
+
+include:
+  - local: '/ci-template/devsecops-template.yml'
+
+stages:
+  - build-prod
+  - build-dev
+  - detect-secrets
+  - dependency-check
+  - upload-bom
+  - sonarqube-check
+
+
+
+.build_dev_template: &build_dev
+  image: docker:20.10.16
+  stage: build-dev
+  before_script:
+    - docker info
+    - docker images
+    - echo $REGISTRY_PUSH_USER
+    - echo $REGISTRY_PUSH_PASSWORD
+    - echo $CI_REGISTRY
+    - docker login -u "$REGISTRY_PUSH_USER" -p "$REGISTRY_PUSH_PASSWORD" "$CI_REGISTRY"
+
+  script:
+    - export APP_VERSION=$ENV_NAME-$(date +'%Y-%m-%d_%H-%M-%S')-`[ -n "$CI_COMMIT_TAG" ] && echo $CI_COMMIT_TAG || echo $CI_COMMIT_SHORT_SHA` && echo $APP_VERSION
+    - docker build -t "$CI_REGISTRY_IMAGE:$APP_VERSION" -t "$CI_REGISTRY_IMAGE"  . -f Dockerfile
+    - docker push "$CI_REGISTRY_IMAGE:$APP_VERSION"
+  services:
+    - name: docker:20.10.16-dind
+      alias: docker
+  allow_failure: false
+  tags: [build]
+
+.build_prod_template: &build_prod
+ image: docker:20.10.16
+ stage: build-prod
+ before_script:
+   - docker info
+   - docker images
+   - echo $REGISTRY_PUSH_USER
+   - echo $REGISTRY_PUSH_PASSWORD
+   - echo $CI_REGISTRY
+   - docker login -u "$REGISTRY_PUSH_USER" -p "$REGISTRY_PUSH_PASSWORD" "$CI_REGISTRY"
+
+ script:
+   - export APP_VERSION=$ENV_NAME-$(date +'%Y-%m-%d_%H-%M-%S')-`[ -n "$CI_COMMIT_TAG" ] && echo $CI_COMMIT_TAG || echo $CI_COMMIT_SHORT_SHA` && echo $APP_VERSION
+   - docker build -t "$CI_REGISTRY_IMAGE:$APP_VERSION" -t "$CI_REGISTRY_IMAGE"  . -f Dockerfile
+   - docker push "$CI_REGISTRY_IMAGE:$APP_VERSION"
+ services:
+   - name: docker:20.10.16-dind
+     alias: docker
+ allow_failure: false
+ tags: [build]
+
+
+build-dev:
+  <<: *build_dev
+  variables:
+    ENV_NAME: dev
+  only:
+    - develop
+    
+build-prod:
+ <<: *build_prod
+ variables:
+   ENV_NAME: prod
+ only:
+   - main
